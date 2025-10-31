@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Team Portal - CTF Challenge</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        .search-container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .search-card {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            margin-bottom: 30px;
+        }
+        .search-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .search-header h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        .team-info-card {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            display: none;
+        }
+        .team-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .info-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .info-section h5 {
+            color: #667eea;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        .status-badge {
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            display: inline-block;
+            margin: 5px 0;
+        }
+        .status-ready {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-waiting {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .status-running {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        .btn-download {
+            width: 100%;
+            padding: 15px;
+            background: #667eea;
+            border: none;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 10px;
+            margin-top: 10px;
+        }
+        .btn-download:hover {
+            background: #5568d3;
+            color: white;
+        }
+        .btn-search {
+            width: 100%;
+            padding: 15px;
+            background: #667eea;
+            border: none;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        .btn-search:hover {
+            background: #5568d3;
+        }
+        .challenge-list {
+            list-style: none;
+            padding: 0;
+        }
+        .challenge-item {
+            background: white;
+            padding: 15px;
+            border-left: 4px solid #667eea;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .challenge-name {
+            font-weight: bold;
+            color: #667eea;
+            font-size: 16px;
+        }
+        .challenge-url {
+            color: #495057;
+            font-family: monospace;
+            font-size: 14px;
+            word-break: break-all;
+        }
+        .waiting-message {
+            text-align: center;
+            padding: 30px;
+            background: #fff3cd;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        .waiting-message i {
+            font-size: 48px;
+            color: #856404;
+        }
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .back-btn {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .copy-btn {
+            padding: 5px 10px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="search-container">
+        <!-- Search Card -->
+        <div class="search-card" id="searchCard">
+            <div class="search-header">
+                <h1>🎯 Team Portal</h1>
+                <p class="text-muted">Enter your team code to access resources</p>
+            </div>
+            
+            <div id="errorMessage" style="display: none;" class="error-message"></div>
+            
+            <div class="mb-3">
+                <label class="form-label">Team Code</label>
+                <input type="text" id="teamCodeInput" class="form-control form-control-lg" 
+                       placeholder="Enter your team code (e.g., ALPHA2025)" 
+                       onkeypress="if(event.key==='Enter') searchTeam()">
+            </div>
+            <button class="btn btn-primary btn-search" onclick="searchTeam()">🔍 Search</button>
+        </div>
+
+        <!-- Team Info Card (Hidden initially) -->
+        <div class="team-info-card" id="teamInfoCard">
+            <div class="team-header">
+                <h2 id="teamName"></h2>
+                <p id="teamCode" style="font-family: monospace; font-size: 20px;"></p>
+                <p id="teamNetwork" style="font-size: 14px; opacity: 0.9;"></p>
+            </div>
+
+            <!-- VPN Section -->
+            <div class="info-section">
+                <h5>🔐 VPN Connection</h5>
+                <div id="vpnStatus"></div>
+            </div>
+
+            <!-- Challenges Section -->
+            <div class="info-section">
+                <h5>🎮 Challenge Servers</h5>
+                <div id="challengeStatus"></div>
+            </div>
+
+            <!-- Instructions -->
+            <div class="info-section">
+                <h5>📖 Instructions</h5>
+                <ol style="line-height: 1.8;">
+                    <li>Download and install OpenVPN client:
+                        <ul>
+                            <li>Windows: <a href="https://openvpn.net/client/" target="_blank">OpenVPN GUI</a></li>
+                            <li>macOS: <a href="https://tunnelblick.net/" target="_blank">Tunnelblick</a></li>
+                            <li>Linux: <code>sudo apt install openvpn</code></li>
+                        </ul>
+                    </li>
+                    <li>Download your team's VPN config file from above</li>
+                    <li>Connect to VPN using the downloaded config</li>
+                    <li>Once connected, access the challenge servers using the IPs listed above</li>
+                    <li>Find flags and submit them to the scoreboard</li>
+                </ol>
+            </div>
+
+            <div class="back-btn">
+                <button class="btn btn-secondary" onclick="resetSearch()">🔙 Search Another Team</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentTeamData = null;
+
+        function searchTeam() {
+            const teamCode = document.getElementById('teamCodeInput').value.trim();
+            
+            if (!teamCode) {
+                showError('Please enter a team code');
+                return;
+            }
+
+            document.getElementById('errorMessage').style.display = 'none';
+
+            fetch('/api/team/search', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({team_code: teamCode})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    displayTeamInfo(data);
+                } else {
+                    showError(data.error || 'Team not found');
+                }
+            })
+            .catch(err => {
+                showError('Connection error. Please try again.');
+            });
+        }
+
+        function displayTeamInfo(data) {
+            currentTeamData = data;
+            const team = data.team;
+            const challenges = data.challenges;
+
+            // Update team header
+            document.getElementById('teamName').textContent = team.name;
+            document.getElementById('teamCode').textContent = `Team Code: ${team.code}`;
+            document.getElementById('teamNetwork').textContent = `Network: 10.100.${team.team_ip}.0/24`;
+
+            // VPN Status
+            const vpnStatusDiv = document.getElementById('vpnStatus');
+            if (team.vpn_generated) {
+                vpnStatusDiv.innerHTML = `
+                    <span class="status-badge status-ready">✅ VPN Ready</span>
+                    <a href="${team.vpn_download_url}" class="btn btn-download">
+                        📥 Download VPN Config
+                    </a>
+                    <p class="mt-2 text-muted" style="font-size: 14px;">
+                        File: team${team.team_ip}.ovpn
+                    </p>
+                `;
+            } else {
+                vpnStatusDiv.innerHTML = `
+                    <div class="waiting-message">
+                        <div style="font-size: 48px;">⏳</div>
+                        <h5>VPN Not Ready Yet</h5>
+                        <p>Please wait for the admin to generate your VPN configuration.</p>
+                    </div>
+                `;
+            }
+
+            // Challenge Status
+            const challengeStatusDiv = document.getElementById('challengeStatus');
+            if (team.challenges_running && challenges.length > 0) {
+                challengeStatusDiv.innerHTML = `
+                    <span class="status-badge status-running">✅ Challenges Running</span>
+                    <ul class="challenge-list mt-3">
+                        ${challenges.map(c => `
+                            <li class="challenge-item">
+                                <div class="challenge-name">${c.challenge_type}</div>
+                                <div class="challenge-url">
+                                    <a href="http://${c.ip_address}:${c.port}" target="_blank">
+                                        http://${c.ip_address}:${c.port}
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-secondary copy-btn" 
+                                            onclick="copyToClipboard('http://${c.ip_address}:${c.port}')">
+                                        📋 Copy
+                                    </button>
+                                </div>
+                            </li>
+                        `).join('')}
+                    </ul>
+                `;
+            } else {
+                challengeStatusDiv.innerHTML = `
+                    <div class="waiting-message">
+                        <div style="font-size: 48px;">⏳</div>
+                        <h5>Challenges Not Started</h5>
+                        <p>The game hasn't started yet. Challenge servers will appear here once the admin starts the game.</p>
+                    </div>
+                `;
+            }
+
+            // Hide search, show info
+            document.getElementById('searchCard').style.display = 'none';
+            document.getElementById('teamInfoCard').style.display = 'block';
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = '❌ ' + message;
+            errorDiv.style.display = 'block';
+        }
+
+        function resetSearch() {
+            document.getElementById('searchCard').style.display = 'block';
+            document.getElementById('teamInfoCard').style.display = 'none';
+            document.getElementById('teamCodeInput').value = '';
+            document.getElementById('errorMessage').style.display = 'none';
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Copied to clipboard: ' + text);
+            });
+        }
+
+        // Auto-focus on input
+        document.getElementById('teamCodeInput').focus();
+
+
+
+
+        //Auto-search if ?q=value is present in the URL
+window.addEventListener('DOMContentLoaded', () => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('q');
+    if (code) {
+        document.getElementById('teamCodeInput').value = code;
+        searchTeam(); // automatically trigger search
+    }
+});
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CTF Manager Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { padding: 20px; background: #f5f5f5; }
+        .card { margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .status-badge { padding: 5px 10px; border-radius: 15px; font-size: 12px; }
+        .status-ready { background: #d4edda; color: #155724; }
+        .status-pending { background: #fff3cd; color: #856404; }
+        .status-running { background: #d1ecf1; color: #0c5460; }
+        .status-stopped { background: #f8d7da; color: #721c24; }
+        .btn-sm { margin: 2px; }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>🎯 CTF Manager Dashboard</h1>
+            <a href="/logout" class="btn btn-danger">🚪 Logout</a>
+        </div>
+        
+        <!-- System Management -->
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h5>⚙️ System Management</h5>
+            </div>
+            <div class="card-body">
+                <button class="btn btn-danger" onclick="stopAllChallenges()">⏹️ Stop All Challenges</button>
+                <button class="btn btn-success" onclick="startAllChallenges()">▶️ Start All Challenges</button>
+                <button class="btn btn-info" onclick="generateAllVPNs()">🔐 Generate All VPNs</button>
+                <button class="btn btn-warning" onclick="restartSystem()">🔄 Restart CTF Manager</button>
+                <button class="btn btn-secondary" onclick="checkSystemStatus()">📊 System Status</button>
+            </div>
+        </div>
+
+        <!-- Add Team Section -->
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5>📝 Add New Team</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <input type="text" id="teamName" class="form-control" placeholder="Team Name (e.g., Team Alpha)">
+                    </div>
+                    <div class="col-md-3">
+                        <input type="text" id="teamCode" class="form-control" placeholder="Team Code (e.g., ALPHA2025)">
+                    </div>
+                    <div class="col-md-3">
+                        <input type="number" id="teamIP" class="form-control" placeholder="Team IP (1-254)" min="1" max="254">
+                    </div>
+                    <div class="col-md-2">
+                        <button class="btn btn-success w-100" onclick="addTeam()">➕ Add Team</button>
+                    </div>
+                </div>
+                <small class="text-muted">Team IP will be used as: 10.100.[Team IP].0/24</small>
+            </div>
+        </div>
+
+        <!-- Teams Table -->
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5>📊 Active Teams</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Team Name</th>
+                                <th>Team Code</th>
+                                <th>Team IP</th>
+                                <th>VPN Status</th>
+                                <th>Challenge Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="teamsTable">
+                            <tr><td colspan="7" class="text-center">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- IP Modal -->
+    <div class="modal fade" id="ipModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Challenge IPs</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="ipModalBody"></div>
+                <div class="modal-footer">
+                    <button class="btn btn-primary" onclick="copyIPs()">📋 Copy All</button>
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentTeamIPs = '';
+
+        function loadTeams() {
+            fetch('/api/teams')
+                .then(r => r.json())
+                .then(teams => {
+                    const tbody = document.getElementById('teamsTable');
+                    if (teams.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="7" class="text-center">No teams added yet</td></tr>';
+                        return;
+                    }
+                    tbody.innerHTML = teams.map(t => `
+                        <tr>
+                            <td><strong>${t.id}</strong></td>
+                            <td>${t.team_name}</td>
+                            <td><code>${t.team_code}</code></td>
+                            <td><span class="badge bg-secondary">10.100.${t.team_ip}.x</span></td>
+                            <td>
+                                ${t.vpn_generated ? 
+                                    '<span class="status-badge status-ready">✅ Ready</span>' : 
+                                    '<span class="status-badge status-pending">⚠️ Not Generated</span>'}
+                            </td>
+                            <td>
+                                ${t.challenges_running ? 
+                                    '<span class="status-badge status-running">✅ Running</span>' : 
+                                    '<span class="status-badge status-stopped">🔴 Stopped</span>'}
+                            </td>
+                            <td>
+                                ${!t.vpn_generated ? 
+                                    `<button class="btn btn-warning btn-sm" onclick="generateVPN(${t.id})">🔐 Generate VPN</button>` :
+                                    `<button class="btn btn-info btn-sm" onclick="downloadVPN(${t.id})">📥 Download VPN</button>`}
+                                
+                                ${t.vpn_generated && !t.challenges_running ?
+                                    `<button class="btn btn-success btn-sm" onclick="startChallenges(${t.id})">▶️ Start</button>` : ''}
+                                
+                                ${t.challenges_running ?
+                                    `<button class="btn btn-danger btn-sm" onclick="stopChallenges(${t.id})">⏹️ Stop</button>
+                                     <button class="btn btn-primary btn-sm" onclick="viewIPs(${t.id})">🔍 View IPs</button>` : ''}
+                                
+                                <button class="btn btn-danger btn-sm" onclick="deleteTeam(${t.id}, '${t.team_name}')">🗑️ Delete</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                });
+        }
+
+        function addTeam() {
+            const name = document.getElementById('teamName').value.trim();
+            const code = document.getElementById('teamCode').value.trim();
+            const ip = document.getElementById('teamIP').value.trim();
+            
+            if (!name || !code || !ip) {
+                return alert('All fields are required!');
+            }
+            
+            if (ip < 1 || ip > 254) {
+                return alert('Team IP must be between 1-254');
+            }
+            
+            fetch('/api/team/add', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    team_name: name,
+                    team_code: code,
+                    team_ip: parseInt(ip)
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    document.getElementById('teamName').value = '';
+                    document.getElementById('teamCode').value = '';
+                    document.getElementById('teamIP').value = '';
+                    loadTeams();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            });
+        }
+
+        function generateVPN(teamId) {
+            if (!confirm('Generate VPN for Team ' + teamId + '?')) return;
+            
+            fetch(`/api/team/${teamId}/vpn/generate`, {method: 'POST'})
+                .then(r => r.json())
+                .then(data => {
+                    alert(data.success ? 'VPN Generated!' : 'Error: ' + data.error);
+                    loadTeams();
+                });
+        }
+
+        function downloadVPN(teamId) {
+            window.location.href = `/api/team/${teamId}/vpn/download`;
+        }
+
+        function startChallenges(teamId) {
+            if (!confirm('Start challenges for Team ' + teamId + '? (takes 30-60 seconds)')) return;
+            
+            fetch(`/api/team/${teamId}/challenges/start`, {method: 'POST'})
+                .then(r => r.json())
+                .then(data => {
+                    alert(data.message);
+                    setTimeout(loadTeams, 2000);
+                });
+        }
+
+        function stopChallenges(teamId) {
+            if (!confirm('Stop all challenges for Team ' + teamId + '?')) return;
+            
+            fetch(`/api/team/${teamId}/challenges/stop`, {method: 'POST'})
+                .then(r => r.json())
+                .then(data => {
+                    alert(data.message);
+                    loadTeams();
+                });
+        }
+
+        function viewIPs(teamId) {
+            fetch(`/api/team/${teamId}/ips`)
+                .then(r => r.json())
+                .then(ips => {
+                    currentTeamIPs = ips.map(ip => 
+                        `${ip.challenge_type}: http://${ip.ip_address}:${ip.port}`
+                    ).join('\n');
+                    
+                    document.getElementById('ipModalBody').innerHTML = `
+                        <h6>Team ${teamId} Challenge IPs:</h6>
+                        <pre>${currentTeamIPs}</pre>
+                    `;
+                    new bootstrap.Modal(document.getElementById('ipModal')).show();
+                });
+        }
+
+        function copyIPs() {
+            navigator.clipboard.writeText(currentTeamIPs);
+            alert('IPs copied to clipboard!');
+        }
+
+        function deleteTeam(teamId, teamName) {
+            if (!confirm(`Delete Team ${teamId} (${teamName})? This will remove all containers and data!`)) return;
+            
+            fetch(`/api/team/${teamId}/delete`, {method: 'POST'})
+                .then(r => r.json())
+                .then(data => {
+                    alert(data.message);
+                    loadTeams();
+                });
+        }
+
+        function stopAllChallenges() {
+            if (!confirm('Stop ALL team challenges?')) return;
+            
+            fetch('/api/system/stop-all', {method: 'POST'})
+                .then(r => r.json())
+                .then(data => {
+                    alert(data.message);
+                    loadTeams();
+                });
+        }
+
+        function startAllChallenges() {
+            if (!confirm('Start ALL team challenges? This may take several minutes.')) return;
+            
+            fetch('/api/system/start-all', {method: 'POST'})
+                .then(r => r.json())
+                .then(data => {
+                    alert(data.message);
+                    setTimeout(loadTeams, 5000);
+                });
+        }
+
+        function generateAllVPNs() {
+            if (!confirm('Generate VPNs for all teams without VPN?')) return;
+            
+            fetch('/api/system/generate-all-vpns', {method: 'POST'})
+                .then(r => r.json())
+                .then(data => {
+                    alert(data.message);
+                    loadTeams();
+                });
+        }
+
+        function restartSystem() {
+            if (!confirm('Restart CTF Manager container? Page will reload in 10 seconds.')) return;
+            
+            fetch('/api/system/restart', {method: 'POST'})
+                .then(r => r.json())
+                .then(data => {
+                    alert('Restarting... Page will reload automatically.');
+                    setTimeout(() => location.reload(), 10000);
+                });
+        }
+
+        function checkSystemStatus() {
+            fetch('/api/system/status')
+                .then(r => r.json())
+                .then(data => {
+                    alert(`System Status:
+OpenVPN: ${data.openvpn ? '✅ Running' : '❌ Stopped'}
+CTF Manager: ✅ Running
+Total Teams: ${data.total_teams}
+Active Challenges: ${data.active_challenges}
+Total Containers: ${data.total_containers}`);
+                });
+        }
+
+        // Auto-refresh every 5 seconds
+        loadTeams();
+        setInterval(loadTeams, 5000);
+    </script>
+</body>
+</html>

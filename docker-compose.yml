@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  ctf-manager:
+    build: ./ctf-manager
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./openvpn:/app/openvpn
+      - ./vpn-configs:/app/vpn-configs
+      - ./ctf-manager/data:/app/data
+    network_mode: host
+    privileged: true
+
+  postgres:
+    image: postgres:14-alpine
+    environment:
+      POSTGRES_DB: ctfmanager
+      POSTGRES_USER: ctfadmin
+      POSTGRES_PASSWORD: ctfpass123
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
